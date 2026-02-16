@@ -1,0 +1,37 @@
+stages:
+  - build
+  - scan
+  - push
+  - deploy
+
+variables:
+  IMAGE_NAME: "username/nginx-secure"
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA .
+
+scan:
+  stage: scan
+  image: aquasec/trivy
+  script:
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+
+push:
+  stage: push
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker login -u "$DOCKER_USER" -p "$DOCKER_PASS"
+    - docker push $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+
+deploy:
+  stage: deploy
+  script:
+    - kubectl apply -f k8s/
+  when: manual
